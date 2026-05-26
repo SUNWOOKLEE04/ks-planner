@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시간표 메이커</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #060b18;
+  --surf:     #0c1526;
+  --card:     #111d35;
+  --border:   rgba(255,255,255,0.07);
+  --indigo:   #6366f1;
+  --indigo-l: #818cf8;
+  --indigo-d: #4f46e5;
+  --mint:     #34d399;
+  --amber:    #fbbf24;
+  --rose:     #fb7185;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --step-h:   56px;
+  --r:        16px;
+}
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── noise grain overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999; opacity: .4;
+}
+
+/* ── HEADER ── */
+.hero {
+  padding: 44px 24px 28px;
+  text-align: center;
+  position: relative;
+}
+.hero::after {
+  content: '';
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 320px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--indigo), transparent);
+}
+.hero-label {
+  display: inline-block;
+  background: rgba(99,102,241,.15);
+  border: 1px solid rgba(99,102,241,.3);
+  color: var(--indigo-l); font-size: .72rem; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 5px 14px; border-radius: 20px; margin-bottom: 18px;
+}
+.hero h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  font-weight: 800; letter-spacing: -1px;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #fff 0%, var(--indigo-l) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero p {
+  margin-top: 10px; color: var(--muted); font-size: .88rem;
+}
+
+/* ── STEP INDICATOR ── */
+.steps {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; padding: 20px 24px 0; max-width: 500px; margin: 0 auto;
+}
+.step-item {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1; position: relative;
+}
+.step-item:not(:last-child)::after {
+  content: '';
+  position: absolute; top: 18px; left: calc(50% + 16px);
+  width: calc(100% - 32px); height: 1px;
+  background: var(--border);
+  transition: background .4s;
+}
+.step-item.done:not(:last-child)::after { background: var(--indigo); }
+
+.step-dot {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-size: .8rem; font-weight: 700;
+  border: 1.5px solid var(--border);
+  color: var(--muted); background: var(--surf);
+  transition: all .3s; position: relative; z-index: 1;
+}
+.step-item.active .step-dot {
+  border-color: var(--indigo); color: #fff; background: var(--indigo);
+  box-shadow: 0 0 20px rgba(99,102,241,.5);
+}
+.step-item.done .step-dot {
+  border-color: var(--indigo); color: var(--indigo); background: rgba(99,102,241,.1);
+}
+.step-label { font-size: .7rem; color: var(--muted); font-weight: 500; }
+.step-item.active .step-label { color: var(--indigo-l); }
+
+/* ── CONTAINER ── */
+.wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px 60px; }
+
+/* ── PANEL TRANSITIONS ── */
+.panel { display: none; animation: fadeIn .3s ease; }
+.panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ── SECTION CARD ── */
+.scard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 22px 20px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.scard::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,.4), transparent);
+}
+.scard-title {
+  font-size: .82rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--indigo-l); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.scard-title .icon { font-size: 1rem; }
+
+/* ── CHIPS ── */
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 7px 14px; border-radius: 30px;
+  font-size: .78rem; font-weight: 500;
+  border: 1.5px solid var(--border);
+  color: var(--muted); background: var(--surf);
+  cursor: pointer; transition: all .15s; user-select: none;
+}
+.chip:hover { border-color: var(--indigo); color: var(--text); }
+.chip.on {
+  border-color: var(--indigo); color: var(--indigo-l);
+  background: rgba(99,102,241,.12);
+  box-shadow: 0 0 0 1px rgba(99,102,241,.2);
+}
+.chip.day-chip.on {
+  border-color: var(--mint); color: var(--mint);
+  background: rgba(52,211,153,.1);
+}
+
+/* ── SLIDER ── */
+.slider-row { display: flex; align-items: center; gap: 14px; }
+input[type=range] {
+  -webkit-appearance: none; flex: 1; height: 4px;
+  background: var(--border); border-radius: 2px; outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--indigo); border: 2px solid #fff;
+  box-shadow: 0 0 10px rgba(99,102,241,.6);
+}
+.slider-val {
+  font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 700;
+  color: var(--indigo-l); min-width: 52px; text-align: right;
+}
+.slider-hint { font-size: .74rem; color: var(--muted); margin-top: 6px; }
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 13px 28px; border-radius: 12px; border: none;
+  font-size: .88rem; font-weight: 600; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: all .18s; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary {
+  background: var(--indigo); color: #fff;
+  box-shadow: 0 4px 20px rgba(99,102,241,.4);
+}
+.btn-primary:hover { background: var(--indigo-d); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-ghost {
+  background: var(--surf); color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+.btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+/* ── SEARCH ── */
+.search-wrap { position: relative; margin-bottom: 14px; }
+.search-wrap input {
+  width: 100%; padding: 11px 14px 11px 40px;
+  background: var(--surf); border: 1.5px solid var(--border);
+  border-radius: 12px; color: var(--text); font-size: .88rem;
+  font-family: inherit; outline: none; transition: border-color .2s;
+}
+.search-wrap input:focus { border-color: var(--indigo); }
+.search-wrap input::placeholder { color: var(--muted); }
+.search-wrap::before {
+  content: '🔍'; position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-size: .85rem; pointer-events: none;
+}
+
+/* ── COURSE GRID ── */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px;
+}
+.course-grid::-webkit-scrollbar { width: 4px; }
+.course-grid::-webkit-scrollbar-track { background: transparent; }
+.course-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ccard {
+  padding: 12px 13px; border-radius: 12px;
+  background: var(--surf); border: 1.5px solid var(--border);
+  cursor: pointer; transition: all .15s; user-select: none;
+  position: relative;
+}
+.ccard:hover { border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.05); }
+.ccard.sel {
+  border-color: var(--indigo); background: rgba(99,102,241,.1);
+}
+.ccard.sel::after {
+  content: '✓'; position: absolute; top: 8px; right: 10px;
+  font-size: .7rem; color: var(--indigo); font-weight: 700;
+}
+.ccard-name { font-size: .8rem; font-weight: 600; line-height: 1.4; padding-right: 18px; }
+.ccard-prof { font-size: .72rem; color: var(--muted); margin-top: 3px; }
+.ccard-meta {
+  display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap;
+}
+.ccard-tag {
+  font-size: .65rem; padding: 2px 7px; border-radius: 8px;
+  background: rgba(255,255,255,.05); color: var(--muted);
+}
+.ccard-tag.cyber { background: rgba(251,191,36,.1); color: var(--amber); }
+
+/* ── STATUS BAR ── */
+.status-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surf); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 16px;
+  margin-top: 12px;
+}
+.stat-item { display: flex; flex-direction: column; }
+.stat-label { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.stat-val { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.stat-val.good { color: var(--mint); }
+.stat-val.warn { color: var(--amber); }
+.stat-div { width: 1px; height: 30px; background: var(--border); margin: 0 6px; }
+.status-bar .spacer { flex: 1; }
+
+/* ── RESULT TABS ── */
+.result-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.rtab {
+  padding: 9px 18px; border-radius: 10px;
+  background: var(--surf); border: 1.5px solid var(--border);
+  font-size: .82rem; font-weight: 600; cursor: pointer;
+  transition: all .15s; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+}
+.rtab:hover { border-color: var(--indigo); color: var(--text); }
+.rtab.active { border-color: var(--indigo); background: rgba(99,102,241,.12); color: var(--indigo-l); }
+.score-pill {
+  font-size: .68rem; padding: 2px 7px; border-radius: 8px;
+  background: rgba(52,211,153,.15); color: var(--mint); font-weight: 700;
+}
+
+/* ── SCORE BREAKDOWN ── */
+.breakdown {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.bd-item {
+  flex: 1; min-width: 100px;
+  background: var(--surf); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; text-align: center;
+}
+.bd-val { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 700; }
+.bd-val.pos { color: var(--mint); }
+.bd-val.neg { color: var(--rose); }
+.bd-val.neu { color: var(--indigo-l); }
+.bd-label { font-size: .68rem; color: var(--muted); margin-top: 3px; }
+
+/* ── TIMETABLE ── */
+.tt-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+table.tt {
+  border-collapse: collapse; width: 100%; min-width: 440px;
+  font-size: .72rem; background: var(--surf);
+}
+table.tt thead th {
+  background: rgba(99,102,241,.08);
+  padding: 10px 6px; font-size: .74rem; font-weight: 700;
+  color: var(--indigo-l); text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+table.tt thead th:first-child { width: 52px; }
+table.tt tbody td {
+  border: 1px solid rgba(255,255,255,.04);
+  vertical-align: top; min-height: 42px; height: 42px; padding: 0;
+  position: relative;
+}
+table.tt .td-period {
+  text-align: center; padding: 0 4px;
+  background: rgba(255,255,255,.02);
+}
+table.tt .td-period .p-num {
+  font-family: 'Syne', sans-serif; font-size: .72rem; font-weight: 700;
+  color: var(--muted); display: block;
+}
+table.tt .td-period .p-time {
+  font-size: .6rem; color: rgba(100,116,139,.7);
+}
+table.tt .td-class {
+  padding: 4px 5px; position: relative;
+}
+table.tt .class-blk {
+  width: 100%; height: 100%; min-height: 38px;
+  border-radius: 6px; padding: 4px 6px;
+  display: flex; flex-direction: column; justify-content: center;
+  color: #fff; line-height: 1.3; overflow: hidden;
+}
+table.tt .class-blk b { font-size: .68rem; font-weight: 700; display: block; }
+table.tt .class-blk span { font-size: .6rem; opacity: .8; }
+table.tt td.empty { background: transparent; }
+table.tt tbody tr:hover td { background: rgba(255,255,255,.01); }
+
+/* ── LOADING ── */
+#loadingMsg {
+  text-align: center; padding: 40px;
+  color: var(--muted); font-size: .9rem;
+}
+.pulse {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--indigo);
+  margin-right: 8px; animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+
+/* ── EMPTY MSG ── */
+.empty-msg {
+  text-align: center; padding: 32px; color: var(--muted); font-size: .85rem;
+}
+
+/* ── responsive ── */
+@media(max-width:500px){
+  .hero h1 { font-size: 1.6rem; }
+  .course-grid { grid-template-columns: 1fr 1fr; }
+  .breakdown { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">✦ Smart Scheduler</div>
+  <h1>나만의 시간표<br>자동 추천</h1>
+  <p>내 수강 스타일을 분석해서 최적의 시간표를 골라드려요</p>
+</div>
+
+<!-- STEP INDICATOR -->
+<div class="steps">
+  <div class="step-item active" id="si-1">
+    <div class="step-dot">1</div>
+    <div class="step-label">스타일 설정</div>
+  </div>
+  <div class="step-item" id="si-2">
+    <div class="step-dot">2</div>
+    <div class="step-label">강의 선택</div>
+  </div>
+  <div class="step-item" id="si-3">
+    <div class="step-dot">3</div>
+    <div class="step-label">추천 시간표</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ==================== STEP 1 ==================== -->
+  <div id="panel-1" class="panel active">
+
+    <!-- 비선호 교시 -->
+    <div class="scard">
+      <div class="scard-title"><span class="icon">🕐</span>피하고 싶은 교시</div>
+      <div class="chip-group" id="periodChips"></div>
+    </div>
+
+    <!-- 공강 희망 요일 -->
+    <div class="scard">
+      <div class="scard-title"><span class="icon">📅</span>공강 희망 요일 <span style="color:var(--muted);font-size:.72rem;font-weight:400;margin-left:4px;">(복수 선택)</span></div>
+      <div class="chip-group">
+        <div class="chip day-chip" data-day="0">월요일</div>
+        <div class="chip day-chip" data-day="1">화요일</div>
+        <div class="chip day-chip" data-day="2">수요일</div>
+        <div class="chip day-chip" data-day="3">목요일</div>
+        <div class="chip day-chip" data-day="4">금요일</div>
+      </div>
+    </div>
+
+    <!-- 목표 학점 -->
+    <div class="scard">
+      <div class="scard-title"><span class="icon">🎯</span>목표 학점</div>
+      <div class="slider-row">
+        <input type="range" id="creditSlider" min="6" max="21" step="1" value="18">
+        <div class="slider-val"><span id="creditVal">18</span>학점</div>
+      </div>
+      <div class="slider-hint">선택한 강의 조합이 목표 학점에 가까울수록 높은 점수를 받아요</div>
+    </div>
+
+    <!-- 시간 밀집도 -->
+    <div class="scard">
+      <div class="scard-title"><span class="icon">⚡</span>수업 배치 스타일</div>
+      <div class="chip-group" id="styleChips">
+        <div class="chip style-chip on" data-style="cluster">한 요일에 몰아서</div>
+        <div class="chip style-chip" data-style="spread">요일별로 분산</div>
+        <div class="chip style-chip" data-style="none">상관없음</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goStep(2)">강의 선택하기 →</button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 2 ==================== -->
+  <div id="panel-2" class="panel">
+    <div class="scard">
+      <div class="scard-title"><span class="icon">🔍</span>수강할 강의 검색</div>
+      <div class="search-wrap">
+        <input id="search" type="text" placeholder="강의명 또는 교수명으로 검색…">
+      </div>
+      <div id="loadingMsg"><span class="pulse"></span>강의 데이터 불러오는 중…</div>
+      <div id="courseGrid" class="course-grid" style="display:none;"></div>
+    </div>
+
+    <div class="status-bar">
+      <div class="stat-item">
+        <div class="stat-label">선택</div>
+        <div class="stat-val" id="selCount">0</div>
+      </div>
+      <div class="stat-div"></div>
+      <div class="stat-item">
+        <div class="stat-label">예상학점</div>
+        <div class="stat-val" id="selCredits">0</div>
+      </div>
+      <div class="stat-div"></div>
+      <div class="stat-item">
+        <div class="stat-label">목표</div>
+        <div class="stat-val" id="targetDisp">18</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" onclick="clearSel()" style="padding:8px 14px;font-size:.78rem;">초기화</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-ghost" onclick="goStep(1)">← 뒤로</button>
+      <button class="btn btn-primary" onclick="generate()">🚀 시간표 추천받기</button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 3 ==================== -->
+  <div id="panel-3" class="panel">
+    <div id="result-area"></div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-ghost" onclick="goStep(2)">← 강의 재선택</button>
+      <button class="btn btn-ghost" onclick="goStep(1)">⚙ 설정 변경</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================================================
+   상수 & 상태
+   =================================================== */
+const PDY = 15;  // periods per day  (t = day*15 + period, period 1~14)
+const MAX_P = 14;
+const DAY_KR = ['월','화','수','목','금'];
+const P_TIME = {1:'09:00',2:'10:00',3:'11:00',4:'12:00',5:'13:00',
+                6:'14:00',7:'15:00',8:'16:00',9:'17:00',
+                10:'18:00',11:'19:00',12:'20:00',13:'21:00',14:'22:00'};
+
+const COURSE_COLORS = [
+  '#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6',
+  '#a855f7','#f97316','#14b8a6','#ef4444','#84cc16',
+  '#06b6d4','#8b5cf6','#fb923c','#22c55e','#e879f9'
+];
+
+let allCourses = [];
+let courseDict  = {};   // class_id → item
+let selected    = new Set();
+let colorMap    = {};
+let colorIdx    = 0;
+
+const prefs = {
+  dislikedPeriods: new Set(),
+  freeDays:        new Set(),
+  targetCredits:   18,
+  style:           'cluster',  // 'cluster' | 'spread' | 'none'
+};
+
+/* ===================================================
+   초기화
+   =================================================== */
+window.onload = () => {
+  buildPeriodChips();
+  setupEvents();
+  loadData();
+};
+
+function buildPeriodChips() {
+  const g = document.getElementById('periodChips');
+  for (let p = 1; p <= 9; p++) {
+    const d = document.createElement('div');
+    d.className = 'chip period-chip';
+    d.dataset.period = p;
+    d.textContent = `${p}교시 (${P_TIME[p]})`;
+    d.onclick = () => {
+      d.classList.toggle('on');
+      if (d.classList.contains('on')) prefs.dislikedPeriods.add(p);
+      else prefs.dislikedPeriods.delete(p);
+    };
+    g.appendChild(d);
+  }
+}
+
+function setupEvents() {
+  // 공강 요일
+  document.querySelectorAll('.day-chip').forEach(el => {
+    el.onclick = () => {
+      el.classList.toggle('on');
+      const d = parseInt(el.dataset.day);
+      if (el.classList.contains('on')) prefs.freeDays.add(d);
+      else prefs.freeDays.delete(d);
+    };
+  });
+
+  // 학점 슬라이더
+  const sl = document.getElementById('creditSlider');
+  sl.oninput = () => {
+    prefs.targetCredits = parseInt(sl.value);
+    document.getElementById('creditVal').textContent = sl.value;
+    document.getElementById('targetDisp').textContent = sl.value + '학점';
+    updateCreditStatus();
+  };
+
+  // 배치 스타일
+  document.querySelectorAll('.style-chip').forEach(el => {
+    el.onclick = () => {
+      document.querySelectorAll('.style-chip').forEach(c => c.classList.remove('on'));
+      el.classList.add('on');
+      prefs.style = el.dataset.style;
+    };
+  });
+
+  // 검색
+  document.getElementById('search').addEventListener('input', e =>
+    renderCourses(e.target.value)
+  );
+}
+
+/* ===================================================
+   데이터 로드
+   =================================================== */
+async function loadData() {
+  try {
+    const res  = await fetch('./final_data.json');
+    const data = await res.json();
+    allCourses = Array.isArray(data) ? data : (data.courses || []);
+
+    // 중복 제거 (같은 class_id 첫 번째만)
+    const seen = new Set();
+    allCourses = allCourses.filter(c => {
+      if (!c.class_id || seen.has(c.class_id)) return false;
+      seen.add(c.class_id);
+      courseDict[c.class_id] = c;
+      return true;
+    });
+
+    document.getElementById('loadingMsg').style.display = 'none';
+    const g = document.getElementById('courseGrid');
+    g.style.display = 'grid';
+    renderCourses('');
+  } catch (e) {
+    document.getElementById('loadingMsg').innerHTML =
+      `<span style="color:#fb7185">⚠ final_data.json 로드 실패<br><small>${e.message}</small></span>`;
+  }
+}
+
+/* ===================================================
+   강의 렌더링
+   =================================================== */
+function estimateCredits(course) {
+  return (course.times || []).length;
+}
+
+function renderCourses(kw = '') {
+  const grid = document.getElementById('courseGrid');
+  const k = kw.toLowerCase();
+  const list = allCourses.filter(c =>
+    ((c.subject||'') + ' ' + (c.professor||'')).toLowerCase().includes(k)
+  );
+
+  grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty-msg">검색 결과가 없어요</div>';
+    return;
+  }
+
+  list.forEach(c => {
+    const cr = estimateCredits(c);
+    const daysStr = getDayStr(c.times || []);
+    const isSel   = selected.has(c.class_id);
+
+    const el = document.createElement('div');
+    el.className = 'ccard' + (isSel ? ' sel' : '');
+    el.innerHTML = `
+      <div class="ccard-name">${c.subject || '(없음)'}</div>
+      <div class="ccard-prof">${c.professor || '—'}</div>
+      <div class="ccard-meta">
+        <span class="ccard-tag">${cr}학점</span>
+        <span class="ccard-tag">${daysStr}</span>
+        ${c.is_cyber ? '<span class="ccard-tag cyber">사이버</span>' : ''}
+      </div>
+    `;
+    el.onclick = () => toggleCourse(c.class_id, el, cr);
+    grid.appendChild(el);
+  });
+}
+
+function getDayStr(times) {
+  if (!times.length) return '시간미정';
+  const days = [...new Set(times.map(t => Math.floor(t / PDY)))];
+  return days.sort().map(d => DAY_KR[d] || '?').join('·');
+}
+
+function toggleCourse(id, el, cr) {
+  if (selected.has(id)) { selected.delete(id); el.classList.remove('sel'); }
+  else                   { selected.add(id);    el.classList.add('sel'); }
+  updateStatusBar();
+}
+
+function clearSel() {
+  selected.clear();
+  renderCourses(document.getElementById('search').value);
+  updateStatusBar();
+}
+
+function updateStatusBar() {
+  const count = selected.size;
+  const credits = [...selected].reduce((s, id) =>
+    s + estimateCredits(courseDict[id] || {}), 0);
+  document.getElementById('selCount').textContent = count + '개';
+  const cv = document.getElementById('selCredits');
+  cv.textContent = credits + '학점';
+  cv.className = 'stat-val' +
+    (Math.abs(credits - prefs.targetCredits) <= 3 ? ' good' :
+     Math.abs(credits - prefs.targetCredits) <= 6 ? ' warn' : '');
+  updateCreditStatus();
+}
+
+function updateCreditStatus() {
+  document.getElementById('targetDisp').textContent = prefs.targetCredits + '학점';
+}
+
+/* ===================================================
+   STEP 이동
+   =================================================== */
+function goStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`panel-${i}`).classList.toggle('active', i === n);
+    const si = document.getElementById(`si-${i}`);
+    si.className = 'step-item' +
+      (i === n ? ' active' : i < n ? ' done' : '');
+  }
+}
+
+/* ===================================================
+   스케줄 생성
+   =================================================== */
+function generate() {
+  if (selected.size === 0) { alert('강의를 먼저 선택해주세요!'); return; }
+  goStep(3);
+  document.getElementById('result-area').innerHTML =
+    '<div id="loadingMsg" style="padding:48px;text-align:center;color:#64748b;"><span class="pulse"></span>최적 시간표 계산 중…</div>';
+
+  setTimeout(() => {
+    const ids    = [...selected];
+    const results = backtrack(ids);
+    renderResults(results);
+  }, 100);
+}
+
+function scoreSchedule(schedule) {
+  let sc = 100;
+  const usedDays = new Set();
+  const dayPeriods = {};  // day → [periods]
+  let credits = 0;
+
+  for (const course of schedule) {
+    credits += estimateCredits(course);
+    for (const t of (course.times || [])) {
+      const day = Math.floor(t / PDY);
+      const period = t % PDY;
+      usedDays.add(day);
+      if (!dayPeriods[day]) dayPeriods[day] = [];
+      dayPeriods[day].push(period);
+
+      // 비선호 교시 패널티
+      if (prefs.dislikedPeriods.has(period)) sc -= 20;
+    }
+  }
+
+  // 공강 희망 요일 보너스
+  for (const d of prefs.freeDays) {
+    if (!usedDays.has(d)) sc += 35;
+    else sc -= 15;
+  }
+
+  // 목표 학점 근접 보너스
+  const cdiff = Math.abs(credits - prefs.targetCredits);
+  sc += Math.max(0, 40 - cdiff * 8);
+
+  // 수업일 수 기반
+  if (prefs.style === 'cluster') {
+    // 적은 수업일 = 보너스
+    sc += (5 - usedDays.size) * 18;
+  } else if (prefs.style === 'spread') {
+    // 많은 수업일 = 보너스
+    sc += usedDays.size * 10;
+  }
+
+  // 연강 보너스 (같은 날 연속 수업 = 이동 최소화)
+  for (const periods of Object.values(dayPeriods)) {
+    periods.sort((a, b) => a - b);
+    let consecutive = 0;
+    for (let i = 1; i < periods.length; i++) {
+      if (periods[i] === periods[i-1] + 1) consecutive++;
+    }
+    sc += consecutive * 5;
+  }
+
+  return { score: sc, credits, dayCount: usedDays.size };
+}
+
+function backtrack(ids) {
+  const result = [];
+
+  function bt(i, sch, used) {
+    if (result.length >= 80) return;
+    if (i === ids.length) {
+      const { score, credits, dayCount } = scoreSchedule(sch);
+      result.push({ schedule: [...sch], score, credits, dayCount });
+      return;
+    }
+
+    const course = courseDict[ids[i]];
+    if (!course) { bt(i + 1, sch, used); return; }
+
+    const times = new Set(course.times || []);
+    if (!course.is_cyber) {
+      let conflict = false;
+      for (const t of times) { if (used.has(t)) { conflict = true; break; } }
+      if (conflict) return;
+    }
+    sch.push(course);
+    bt(i + 1, sch, new Set([...used, ...times]));
+    sch.pop();
+  }
+
+  bt(0, [], new Set());
+  result.sort((a, b) => b.score - a.score);
+  return result.slice(0, 3);
+}
+
+/* ===================================================
+   결과 렌더링
+   =================================================== */
+let currentTab = 0;
+let resultsData = [];
+
+function renderResults(results) {
+  resultsData = results;
+  const area = document.getElementById('result-area');
+
+  if (!results.length) {
+    area.innerHTML = '<div class="empty-msg">😢 충돌 없이 만들 수 있는 시간표 조합이 없어요.<br>강의를 다시 선택해보세요.</div>';
+    return;
+  }
+
+  area.innerHTML = `
+    <div class="result-tabs" id="result-tabs"></div>
+    <div id="result-body"></div>
+  `;
+
+  const tabs = document.getElementById('result-tabs');
+  results.forEach((r, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'rtab' + (i === 0 ? ' active' : '');
+    btn.innerHTML = `추천 ${i+1} <span class="score-pill">${r.score}점</span>`;
+    btn.onclick = () => switchTab(i);
+    tabs.appendChild(btn);
+  });
+
+  switchTab(0);
+}
+
+function switchTab(idx) {
+  currentTab = idx;
+  document.querySelectorAll('.rtab').forEach((el, i) =>
+    el.classList.toggle('active', i === idx)
+  );
+
+  const r = resultsData[idx];
+  const freeDaysList = DAY_KR.filter((_, d) => {
+    const usedDays = new Set();
+    r.schedule.forEach(c => (c.times||[]).forEach(t => usedDays.add(Math.floor(t/PDY))));
+    return !usedDays.has(d);
+  });
+
+  const dislikedHit = r.schedule.reduce((cnt, c) =>
+    cnt + (c.times||[]).filter(t => prefs.dislikedPeriods.has(t % PDY)).length, 0);
+
+  const freeBonus  = [...prefs.freeDays].filter(d => {
+    const usedDays = new Set();
+    r.schedule.forEach(c => (c.times||[]).forEach(t => usedDays.add(Math.floor(t/PDY))));
+    return !usedDays.has(d);
+  }).length;
+
+  document.getElementById('result-body').innerHTML = `
+    <div class="breakdown">
+      <div class="bd-item">
+        <div class="bd-val neu">${r.credits}학점</div>
+        <div class="bd-label">총 학점 (목표 ${prefs.targetCredits})</div>
+      </div>
+      <div class="bd-item">
+        <div class="bd-val ${r.dayCount <= 3 ? 'pos' : 'neu'}">${r.dayCount}일</div>
+        <div class="bd-label">수업 요일 수</div>
+      </div>
+      <div class="bd-item">
+        <div class="bd-val ${freeBonus > 0 ? 'pos' : 'neu'}">${freeDaysList.length > 0 ? freeDaysList.join('·') + ' 공강' : '공강 없음'}</div>
+        <div class="bd-label">공강 현황</div>
+      </div>
+      <div class="bd-item">
+        <div class="bd-val ${dislikedHit === 0 ? 'pos' : 'neg'}">${dislikedHit === 0 ? '없음' : dislikedHit + '개'}</div>
+        <div class="bd-label">비선호 교시 포함</div>
+      </div>
+    </div>
+    <div class="scard" style="padding:0;">
+      <div class="tt-wrap">${buildTimetableHTML(r.schedule)}</div>
+    </div>
+  `;
+}
+
+/* ===================================================
+   시간표 HTML 빌드
+   t = day*15 + period  (period: 1~14)
+   =================================================== */
+function buildTimetableHTML(schedule) {
+  // assign colors
+  schedule.forEach(c => {
+    if (!colorMap[c.class_id]) {
+      colorMap[c.class_id] = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
+      colorIdx++;
+    }
+  });
+
+  // build grid: grid[day][period] = {course, rowspan} | 'span' | null
+  const grid = {};
+  for (let d = 0; d < 5; d++) {
+    grid[d] = {};
+    for (let p = 1; p <= MAX_P; p++) grid[d][p] = null;
+  }
+
+  schedule.forEach(course => {
+    const byDay = {};
+    (course.times || []).forEach(t => {
+      const day    = Math.floor(t / PDY);
+      const period = t % PDY;
+      if (day < 0 || day > 4 || period < 1 || period > MAX_P) return;
+      if (!byDay[day]) byDay[day] = [];
+      byDay[day].push(period);
+    });
+
+    Object.entries(byDay).forEach(([ds, periods]) => {
+      const day = parseInt(ds);
+      periods.sort((a, b) => a - b);
+      let i = 0;
+      while (i < periods.length) {
+        let j = i;
+        while (j + 1 < periods.length && periods[j+1] === periods[j] + 1) j++;
+        grid[day][periods[i]] = { course, rowspan: j - i + 1 };
+        for (let k = i + 1; k <= j; k++) grid[day][periods[k]] = 'span';
+        i = j + 1;
+      }
+    });
+  });
+
+  // determine which periods have any content
+  const activePeriods = [];
+  for (let p = 1; p <= MAX_P; p++) {
+    const hasContent = Object.values(grid).some(dg =>
+      dg[p] !== null && dg[p] !== 'span'
+    );
+    // show all periods that have content, plus fill in between
+    activePeriods.push(p);
+  }
+
+  // trim: find min/max active period
+  let minP = MAX_P, maxP = 1;
+  for (let d = 0; d < 5; d++) {
+    for (let p = 1; p <= MAX_P; p++) {
+      if (grid[d][p] && grid[d][p] !== 'span') {
+        const end = p + (grid[d][p].rowspan || 1) - 1;
+        minP = Math.min(minP, p);
+        maxP = Math.max(maxP, end);
+      }
+    }
+  }
+  if (minP > maxP) { minP = 1; maxP = 9; }
+
+  let html = `<table class="tt"><thead><tr>
+    <th></th>
+    ${DAY_KR.map(d => `<th>${d}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  for (let p = minP; p <= maxP; p++) {
+    html += `<tr><td class="td-period">
+      <span class="p-num">${p}</span>
+      <span class="p-time">${P_TIME[p]||''}</span>
+    </td>`;
+
+    for (let d = 0; d < 5; d++) {
+      const cell = grid[d][p];
+      if (cell === 'span') continue;
+      if (!cell) {
+        html += `<td class="empty"></td>`;
+      } else {
+        const c   = cell.course;
+        const col = colorMap[c.class_id];
+        const rs  = cell.rowspan;
+        html += `<td class="td-class" rowspan="${rs}">
+          <div class="class-blk" style="background:${col};height:${rs*42-8}px;">
+            <b>${c.subject||''}</b>
+            <span>${c.professor||''}</span>
+          </div>
+        </td>`;
+      }
+    }
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>`;
+  return html;
+}
+</script>
+</body>
+</html>
