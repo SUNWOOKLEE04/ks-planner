@@ -29,7 +29,7 @@
 |------|-----------|
 | Frontend | HTML / CSS / Vanilla JS |
 | Backend | Python · FastAPI |
-| Data | JSON (부산대학교 강의 데이터) |
+| Data | JSON (대학교 강의 데이터) |
 
 ---
 
@@ -67,8 +67,8 @@ uvicorn main:app --reload
 | 이름 | GitHub | 역할 |
 |------|--------|------|
 | 이선욱 | [@SUNWOOKLEE04](https://github.com/SUNWOOKLEE04) | 추천 알고리즘 설계 및 구현 |
-| 이정훈 | [@Irisvt127](https://github.com/Irisvt127) | 데이터 수집 및 정제 |
 | 배수진 | [@sinju1021](https://github.com/sinju1021) | 웹 개발 · UI/UX 디자인 |
+| 이정훈 | [@Irisvt127](https://github.com/Irisvt127) | 데이터 수집 및 정제 |
 
 ---
 
